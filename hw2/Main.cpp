@@ -52,6 +52,8 @@ int main(){
 	while(!WindowShouldClose()){
 		float deltaTime = GetFrameTime();
 
+        
+
         // Input Handling for Emission Rates etc. etc.
         if (IsKeyPressed(KEY_LEFT)) {
             rateX--;
@@ -72,26 +74,36 @@ int main(){
 
         
 
-        std::cout << "rate X: " << rateX << std::endl;
-        std::cout << "rate Y: " << rateY << std::endl;
+        // std::cout << "rate X: " << rateX << std::endl;
+        // std::cout << "rate Y: " << rateY << std::endl;
+        std::cout << deltaTime%1.0f << std::endl;
         
-        // if (timer > 0.0f) {
-        //     timer -= deltaTime;
-        //     if (timer <= 0.0f) {
-        //         particleBirthed = 0;
-        //         timer = 1.0f;
-        //     }
-        // }
+        if (timer > 0.0f) {
+            timer -= deltaTime;
+            if (timer <= 0.0f) {
+                particleBirthed = 0;
+                timer = 1.0f;
+            }
+        }
         
         // Initialize particles based on #6
         if (IsKeyDown(KEY_SPACE)) {
+            if (timer > 0.0f) {
+                timer -= deltaTime;
+                if (timer <= 0.0f) {
+                    particleBirthed = 0;
+                    timer = 1.0f;
+                }
+            }
             for (int j = 0; j < particleCount; j++) {
-                if (!particles[j].isActive && particleBirthed <= rateX) {
+                if (!particles[j].isActive && particleBirthed < rateX) {
                     particles[j].initialize(Vector2{400, 600}, Vector2{GetRandomFloat(-1.0f, 1.0f),(float)-1}, GetRandomValue(50, 100), GetRandomValue(2.0f, 5.0f), randomColor());
                     particleBirthed++;
+                    std::cout << particleBirthed << std::endl;
                     break;
                 }
             }
+            
         }
         // std::cout << particleBirthed << std::endl;
         
@@ -99,8 +111,8 @@ int main(){
 
         // Initialize particles based on #7
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            for (int j = 0; j < particleCount; j++) {
-                if (!particles[j].isActive && particleBirthed <= rateY) {
+            for (int j = 0; j < rateY; j++) {
+                if (!particles[j].isActive) {
                     particles[j].initialize(GetMousePosition(), Vector2{GetRandomFloat(-1.0f, 1.0f), GetRandomFloat(-1.0f, 1.0f)}, GetRandomValue(50, 100), GetRandomValue(2.0f, 5.0f), randomColor());
                     particleBirthed++;
                     break;
