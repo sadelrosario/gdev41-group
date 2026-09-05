@@ -1,5 +1,6 @@
 #include <raylib.h>
 #include <raymath.h>
+#include <iostream>
 
 struct Particle {
     bool isActive; //is active or nah
@@ -21,9 +22,26 @@ struct Particle {
     }
 };
 
+Color randomColor() {
+    unsigned char r = GetRandomValue(0, 255);
+    unsigned char g = GetRandomValue(0, 255);
+    unsigned char b = GetRandomValue(0, 255);
+    Color randomColor = {r, g, b, 1};
+    return randomColor;
+}
+
+float GetRandomFloat(float min, float max) {
+    float randomVal = min + (max - min) * ((float)GetRandomValue(0, 10000) / 10000.0f);
+    return randomVal;
+}
+
 int main(){
-	InitWindow(800,600, "Homework 02");
+	InitWindow(800, 600, "Homework 02");
     int particleCount = 1000;
+    int rateX = 20;
+    int rateY = 20;
+    float timer = 1.0f;
+    int particleBirthed = 0;
 
     Particle* particles = new Particle[particleCount]; 
     for (int i = 0; i < particleCount; i++) {
@@ -35,21 +53,61 @@ int main(){
 		float deltaTime = GetFrameTime();
 
         // Input Handling for Emission Rates etc. etc.
+        if (IsKeyPressed(KEY_LEFT)) {
+            rateX--;
+            if (rateX <= 0) { rateX = 1; }
+        }
+        else if (IsKeyPressed(KEY_RIGHT)) {
+            rateX++;
+            if (rateX >= 50) { rateX = 50; }
+        }
+        else if (IsKeyPressed(KEY_DOWN)) {
+            rateY--;
+            if (rateY >= 0) { rateY = 1; }
+        }
+        else if (IsKeyPressed(KEY_UP)) {
+            rateY++;
+            if (rateY >= 50) { rateY = 50; }
+        }
 
-        // Initialize particles based on #6
+        
 
-        // Initialize particles based on #7
-
-
-        //for checking onleh
-        // if (IsKeyDown(KEY_SPACE)) {
-        //     for (int i = 0; i < particleCount; i++) {
-        //         if (!particles[i].isActive) {
-        //             particles[i].initialize(Vector2{400, 300}, Vector2{(float)GetRandomValue(-2, 5),(float) -1}, GetRandomValue(5, 25), 2, RED);
-        //             break;
-        //         }
+        std::cout << "rate X: " << rateX << std::endl;
+        std::cout << "rate Y: " << rateY << std::endl;
+        
+        // if (timer > 0.0f) {
+        //     timer -= deltaTime;
+        //     if (timer <= 0.0f) {
+        //         particleBirthed = 0;
+        //         timer = 1.0f;
         //     }
         // }
+        
+        // Initialize particles based on #6
+        if (IsKeyDown(KEY_SPACE)) {
+            for (int j = 0; j < particleCount; j++) {
+                if (!particles[j].isActive && particleBirthed <= rateX) {
+                    particles[j].initialize(Vector2{400, 600}, Vector2{GetRandomFloat(-1.0f, 1.0f),(float)-1}, GetRandomValue(50, 100), GetRandomValue(2.0f, 5.0f), randomColor());
+                    particleBirthed++;
+                    break;
+                }
+            }
+        }
+        // std::cout << particleBirthed << std::endl;
+        
+        
+
+        // Initialize particles based on #7
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            for (int j = 0; j < particleCount; j++) {
+                if (!particles[j].isActive && particleBirthed <= rateY) {
+                    particles[j].initialize(GetMousePosition(), Vector2{GetRandomFloat(-1.0f, 1.0f), GetRandomFloat(-1.0f, 1.0f)}, GetRandomValue(50, 100), GetRandomValue(2.0f, 5.0f), randomColor());
+                    particleBirthed++;
+                    break;
+                }
+            }
+        }
+        
         
         //Update and draw particles
         for (int i = 0; i < particleCount; i++) {
@@ -61,7 +119,7 @@ int main(){
                 float lifeRatio = particles[i].lifetime / particles[i].maxLifetime;
                 particles[i].color.a = (lifeRatio * 255); // Fade
                 
-                //Clamp so it woundl't go below 0
+                //Clamp so it wouldn't go below 0
                 if (particles[i].color.a < 0) { 
                     particles[i].color.a = 0;
                 }
@@ -71,6 +129,7 @@ int main(){
                 }
             }
         }
+        
 		BeginDrawing();
 		ClearBackground(WHITE);
         
