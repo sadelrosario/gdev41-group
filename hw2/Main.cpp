@@ -48,10 +48,11 @@ float GetRandomFloat(float min, float max) {
 int main(){
 	InitWindow(800, 600, "Homework 02");
     int particleCount = 1000;
-    float rateX = 50;
-    float rateY = 50;
+    float rateX = 50.0f;
+    float rateY = 50.0f;
     // float timer = 1.0f;
-    float timePassed = 0.0f;
+    float mouseTimePassed = 0.0f;
+    float bottomTimePassed = 0.0f;
     int particleBirthed = 0;
 
     int add_rateX, minus_rateX, add_rateY, minus_rateY, emit_particles_bottom, emit_particles_cursor;
@@ -103,13 +104,12 @@ int main(){
         // interval between each particle spawn = 1 / rate
         // then we use the interval as a Timer? kind of similar to sleep
 
-        float intervalX = 1/rateX;
-        float intervalY = 1/rateY;    
-        
+        float intervalX = 1.0f/rateX;
+        float intervalY = 1.0f/rateY;    
         // Initialize particles based on #6
         if (IsKeyDown(emit_particles_bottom)) {
-            timePassed += deltaTime;
-            while (timePassed >= intervalX) {
+            bottomTimePassed += deltaTime;
+            while (bottomTimePassed >= intervalX) {
                 for (int j = 0; j < particleCount; j++) {
                     if (!particles[j].isActive) {
                         particles[j].initialize(Vector2{400, 600}, Vector2{GetRandomFloat(-1.0f, 1.0f),(float)-1}, GetRandomValue(50, 100), GetRandomValue(2.0f, 5.0f), randomColor());
@@ -118,22 +118,22 @@ int main(){
                         break;
                     }
                 }
-                timePassed -= intervalX;
+                bottomTimePassed -= intervalX;
             }         
         }
 
         // Initialize particles based on #7
         if (IsMouseButtonDown(emit_particles_cursor)) {
-            timePassed += deltaTime;
-            while (timePassed >= intervalY) {
-                for (int j = 0; j < rateY; j++) {
+            mouseTimePassed += deltaTime;
+            while (mouseTimePassed >= intervalY) {
+                for (int j = 0; j < particleCount; j++) {
                     if (!particles[j].isActive) {
                         particles[j].initialize(GetMousePosition(), Vector2{GetRandomFloat(-1.0f, 1.0f), GetRandomFloat(-1.0f, 1.0f)}, GetRandomValue(50, 100), GetRandomValue(2.0f, 5.0f), randomColor());
                         particleBirthed++;
                         break;
                     }
                 }
-                timePassed -= intervalY;
+                mouseTimePassed -= intervalY;
             }
             
         }
