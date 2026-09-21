@@ -18,16 +18,48 @@ struct Ball {
     Vector2 acceleration;
     Vector2 velocity;
 
-    // void Ball(vector2 pos, float r, Color c, float m) {
-    //     position = pos;
-    //     radius = r;
-    //     color = c;
-    //     mass = m;
-    //     inverse_mass = 1 / mass;
-    //     acceleration = Vector2Zero();
-    //     velocity = Vector2Zero();
-    // }
+    Ball(Vector2 pos, float r, Color c, float m) {
+        position = pos;
+        radius = r;
+        color = c;
+        mass = m;
+        inverse_mass = 1 / mass;
+        acceleration = Vector2Zero();
+        velocity = Vector2Zero();
+    }
 };
+
+struct Wall {
+    Vector2 position;
+    Color color;
+    float width;
+    float height;
+
+    float mass;
+    float inverse_mass; // A variable for 1 / mass. Used in the calculation for acceleration = sum of forces / mass
+    Vector2 acceleration;
+    Vector2 velocity;
+
+    Wall(Vector2 pos, float w, float h, float m){
+        position = pos;
+        width = w;
+        height = h;
+        mass = m;
+        inverse_mass = 1/mass;
+        acceleration = Vector2Zero();
+        velocity = Vector2Zero();
+    }
+};
+
+void DrawBoard(Wall (&wallArray)[4], Ball (&holeArray)[4]){
+    for(int i = 0; i < 4; i++){
+        DrawRectangle(wallArray[i].position.x, wallArray[i].position.y, wallArray[i].width, wallArray[i].height, RED);
+    };
+    for(int i = 0; i < 4; i++){
+        DrawCircleV(holeArray[i].position, holeArray[i].radius, holeArray[i].color);
+    };
+}
+
 
 void CircleToCircleCollision(Ball& ball1, Ball&  ball2){
     Vector2 collision_normal = Vector2Subtract(ball1.position, ball2.position);
@@ -45,39 +77,39 @@ void CircleToCircleCollision(Ball& ball1, Ball&  ball2){
         ball1.velocity = ball1.velocity + Vector2Scale(collision_normal, impulse * ball1.inverse_mass);
         ball2.velocity = ball2.velocity - Vector2Scale(collision_normal, impulse * ball2.inverse_mass);
     }
-}
+};
 
 int main() {
-    Ball ball;
-    ball.position = {WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2};
-    ball.radius = 50.0f;
-    ball.color = RED;
-    ball.mass = 1.0f;
-    ball.inverse_mass = 1 / ball.mass;
-    ball.acceleration = Vector2Zero();
-    ball.velocity = Vector2Zero();
-
-    Ball redBall;
-    redBall.position = {WINDOW_WIDTH / 2 + 100, WINDOW_HEIGHT / 2 + 100};
-    redBall.radius = 50.0f;
-    redBall.color = BLUE;
-    redBall.mass = 1.0f;
-    redBall.inverse_mass = 1 / redBall.mass;
-    redBall.acceleration = Vector2Zero();
-    redBall.velocity = Vector2Zero();
-
-    Ball greenBall;
-    greenBall.position = {WINDOW_WIDTH / 2 + 100, WINDOW_HEIGHT / 2 - 100};
-    greenBall.radius = 50.0f;
-    greenBall.color = GREEN;
-    greenBall.mass = 1.0f;
-    greenBall.inverse_mass = 1 / greenBall.mass;
-    greenBall.acceleration = Vector2Zero();
-    greenBall.velocity = Vector2Zero();
-
-    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Physics Demo");
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Homework 3 - Pool");
+    float screenCenterX = WINDOW_WIDTH / 2;
+    float screenCenterY = WINDOW_HEIGHT / 2;
     
-    Ball balls[3] = {ball, redBall, greenBall};
+    //Initializing Balls
+    float ballRadius = 25.0f;
+    float ballMass = 1.0f;
+    Ball cueBall = Ball({screenCenterX - 200, screenCenterY}, ballRadius, WHITE, ballMass);
+    Ball ballOne = Ball({screenCenterX + 100, screenCenterY}, ballRadius, BLUE, ballMass);
+    Ball ballTwo = Ball({screenCenterX + 140, screenCenterY + 40}, ballRadius, BLUE, ballMass);
+    Ball ballThree = Ball({screenCenterX + 180, screenCenterY}, ballRadius, BLUE, ballMass);
+    Ball ballFour = Ball({screenCenterX + 140, screenCenterY - 40}, ballRadius, BLUE, ballMass);
+    //Initializing Holes
+    float pocketRadius = 40.0f;
+    float pocketDiameter = pocketRadius*2;
+    Ball uLPocket = Ball({pocketRadius, pocketRadius}, pocketRadius, BLACK, 0.0f);
+    Ball uRPocket = Ball({WINDOW_WIDTH - pocketRadius, pocketRadius}, pocketRadius, BLACK, 0.0f);
+    Ball dLPocket = Ball({pocketRadius, WINDOW_HEIGHT - pocketRadius}, pocketRadius, BLACK, 0.0f);
+    Ball dRPocket = Ball({WINDOW_WIDTH - pocketRadius, WINDOW_HEIGHT - pocketRadius}, pocketRadius, BLACK, 0.0f);
+    //Intialize Walls
+    float wallHeight = 40.0f;
+    Wall topWall = Wall({pocketDiameter, 0}, WINDOW_WIDTH - (pocketDiameter*2), wallHeight, 0);
+    Wall botWall = Wall({pocketDiameter, WINDOW_HEIGHT - wallHeight}, WINDOW_WIDTH - (pocketDiameter*2), wallHeight, 0);
+    Wall rightWall = Wall({WINDOW_WIDTH - wallHeight, pocketDiameter}, wallHeight, WINDOW_HEIGHT - (pocketDiameter*2), 0);
+    Wall leftWall = Wall({0, pocketDiameter}, wallHeight, WINDOW_HEIGHT - (pocketDiameter*2), 0);
+    //Initializing Arrays
+    int ballCount = 5;
+    Ball balls[5] = {cueBall, ballOne, ballTwo, ballThree, ballFour};
+    Ball pockets[4] = {uLPocket, uRPocket, dRPocket, dLPocket};
+    Wall walls[4] = {topWall, botWall, leftWall, rightWall};
 
     SetTargetFPS(FPS);
 
@@ -110,10 +142,15 @@ int main() {
         while(accumulator >= TIMESTEP) {
             // ------ SEMI-IMPLICIT EULER INTEGRATION -------
             // Computes for velocity using v(t + dt) = v(t) + (a(t) * dt)
-            for(int i = 0; i < 3; i++) {
-                int nextBall = (i + 1) % 3;
-                if (nextBall != i) {
-                    CircleToCircleCollision(balls[i], balls[nextBall]);
+            for(int i = 0; i < ballCount; i++) {
+                int currentBall = i;
+                
+                for(int j = 0; j < ballCount; j++){
+                    if(j == currentBall){
+                        continue;
+                    }else{
+                        CircleToCircleCollision(balls[i], balls[j]);
+                    }
                 }
 
                 balls[i].velocity = Vector2Add(balls[i].velocity, Vector2Scale(balls[i].acceleration, TIMESTEP));
@@ -134,8 +171,9 @@ int main() {
         }
 
         BeginDrawing();
-        ClearBackground(WHITE);
-        for(int i = 0; i < 3; i++) {
+        ClearBackground(GREEN);
+        DrawBoard(walls, pockets);
+        for(int i = 0; i < ballCount; i++) {
             DrawCircleV(balls[i].position, balls[i].radius, balls[i].color);
         }
         // DrawCircleV(ball.position, ball.radius, ball.color);
