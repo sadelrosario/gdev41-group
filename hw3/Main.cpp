@@ -1,6 +1,9 @@
 #include <raylib.h>
 #include <raymath.h>
 #include <fstream>
+#include <iostream>
+
+using namespace std;
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
@@ -8,6 +11,8 @@ const float FPS = 60;
 const float TIMESTEP = 1 / FPS; // Sets the timestep to 1 / FPS. But timestep can be any very small value.
 const float FRICTION = 0.5;
 const float ELASTICITY_COEFFICIENT = 1.0f; // 1.0f is a perfect elastic collision, 0.0f is a perfect inelastic collision
+const Vector2 GRAVITY = {0, 1000};
+const float MAX_STRING_POWER = 300;
 
 struct Ball {
     Vector2 position;
@@ -19,7 +24,9 @@ struct Ball {
     Vector2 acceleration;
     Vector2 velocity;
 
-    Ball(Vector2 pos, float r, Color c, float m) {
+    bool isCueBall;
+
+    Ball(Vector2 pos, float r, Color c, float m, bool cue) {
         position = pos;
         radius = r;
         color = c;
@@ -27,7 +34,16 @@ struct Ball {
         inverse_mass = 1 / mass;
         acceleration = Vector2Zero();
         velocity = Vector2Zero();
+        isCueBall = cue;
     }
+};
+
+struct Spring {
+    Vector2 spring_start;
+    Vector2 spring_end;
+    float rest_length;
+    float b;
+    float k;
 };
 
 struct Wall {
@@ -128,6 +144,25 @@ void CircleToCircleCollision(Ball& ball1, Ball&  ball2){
     }
 };
 
+void CircleToAABBCollision(Ball& ball, Wall& wall) {
+    Vector2 min = wall.position; 
+    Vector2 max = {wall.position.x+wall.width, wall.position.y+wall.height}; 
+    Vector2 closest_point = Vector2Clamp(ball.position, min, max);  
+    Vector2 collision_normal = Vector2Subtract(ball.position, closest_point);
+    float distance = Vector2Length(collision_normal);
+    
+    if(distance < ball.radius) {
+        // do collision response
+        Vector2 relVelA = Vector2Subtract(ball.velocity, wall.velocity);
+        float velAlongNormal = Vector2DotProduct(relVelA, collision_normal);
+        float impulseNumerator = (1.0f + ELASTICITY_COEFFICIENT) * velAlongNormal;
+        float impulseDenominator = Vector2DotProduct(collision_normal, collision_normal) * (ball.inverse_mass + wall.inverse_mass);
+        float impulse = -(impulseNumerator / impulseDenominator);
+        ball.velocity = ball.velocity + Vector2Scale(collision_normal, impulse * ball.inverse_mass);
+
+    }
+};
+
 int main() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Homework 3 - Pool");
     float screenCenterX = WINDOW_WIDTH / 2;
@@ -136,51 +171,84 @@ int main() {
     //Initializing Balls
     float ballRadius = 25.0f;
     float ballMass = 1.0f;
-    Ball cueBall = Ball({screenCenterX - 200, screenCenterY}, ballRadius, WHITE, ballMass);
-    Ball ballOne = Ball({screenCenterX + 100, screenCenterY}, ballRadius, BLUE, ballMass);
-    Ball ballTwo = Ball({screenCenterX + 140, screenCenterY + 40}, ballRadius, BLUE, ballMass);
-    Ball ballThree = Ball({screenCenterX + 180, screenCenterY}, ballRadius, BLUE, ballMass);
-    Ball ballFour = Ball({screenCenterX + 140, screenCenterY - 40}, ballRadius, BLUE, ballMass);
+    Ball cueBall = Ball({screenCenterX - 200, screenCenterY}, ballRadius, WHITE, ballMass, true);
+    Ball ballOne = Ball({screenCenterX + 100, screenCenterY}, ballRadius, BLUE, ballMass, false);
+    Ball ballTwo = Ball({screenCenterX + 140, screenCenterY + 40}, ballRadius, BLUE, ballMass, false);
+    Ball ballThree = Ball({screenCenterX + 180, screenCenterY}, ballRadius, BLUE, ballMass, false);
+    Ball ballFour = Ball({screenCenterX + 140, screenCenterY - 40}, ballRadius, BLUE, ballMass, false);
     //Initializing Holes
     float pocketRadius = 40.0f;
     float pocketDiameter = pocketRadius*2;
-    Ball uLPocket = Ball({pocketRadius, pocketRadius}, pocketRadius, BLACK, 0.0f);
-    Ball uRPocket = Ball({WINDOW_WIDTH - pocketRadius, pocketRadius}, pocketRadius, BLACK, 0.0f);
-    Ball dLPocket = Ball({pocketRadius, WINDOW_HEIGHT - pocketRadius}, pocketRadius, BLACK, 0.0f);
-    Ball dRPocket = Ball({WINDOW_WIDTH - pocketRadius, WINDOW_HEIGHT - pocketRadius}, pocketRadius, BLACK, 0.0f);
+    Ball uLPocket = Ball({pocketRadius, pocketRadius}, pocketRadius, BLACK, 0.0f, false);
+    Ball uRPocket = Ball({WINDOW_WIDTH - pocketRadius, pocketRadius}, pocketRadius, BLACK, 0.0f, false);
+    Ball dLPocket = Ball({pocketRadius, WINDOW_HEIGHT - pocketRadius}, pocketRadius, BLACK, 0.0f, false);
+    Ball dRPocket = Ball({WINDOW_WIDTH - pocketRadius, WINDOW_HEIGHT - pocketRadius}, pocketRadius, BLACK, 0.0f, false);
     //Intialize Walls
     float wallHeight = 40.0f;
-    Wall topWall = Wall({pocketDiameter, 0}, WINDOW_WIDTH - (pocketDiameter*2), wallHeight, 0);
-    Wall botWall = Wall({pocketDiameter, WINDOW_HEIGHT - wallHeight}, WINDOW_WIDTH - (pocketDiameter*2), wallHeight, 0);
-    Wall rightWall = Wall({WINDOW_WIDTH - wallHeight, pocketDiameter}, wallHeight, WINDOW_HEIGHT - (pocketDiameter*2), 0);
-    Wall leftWall = Wall({0, pocketDiameter}, wallHeight, WINDOW_HEIGHT - (pocketDiameter*2), 0);
+    float wallMass = 100000.0f;
+    Wall topWall = Wall({pocketDiameter, 0}, WINDOW_WIDTH - (pocketDiameter*2), wallHeight, wallMass);
+    Wall botWall = Wall({pocketDiameter, WINDOW_HEIGHT - wallHeight}, WINDOW_WIDTH - (pocketDiameter*2), wallHeight, wallMass);
+    Wall rightWall = Wall({WINDOW_WIDTH - wallHeight, pocketDiameter}, wallHeight, WINDOW_HEIGHT - (pocketDiameter*2), wallMass);
+    Wall leftWall = Wall({0, pocketDiameter}, wallHeight, WINDOW_HEIGHT - (pocketDiameter*2), wallMass);
     //Initializing Arrays
     int ballCount = 5;
     Ball balls[5] = {cueBall, ballOne, ballTwo, ballThree, ballFour};
     Ball pockets[4] = {uLPocket, uRPocket, dRPocket, dLPocket};
     Wall walls[4] = {topWall, botWall, leftWall, rightWall};
+    // Initializing Spring
+    Spring spring;
+    spring.spring_start = balls[0].position;
+    spring.spring_end = balls[0].position;
+    // spring.rest_length = Vector2Distance(spring.spring_start, Vector2Scale(spring.spring_end, 1.1));
+    spring.rest_length = 0.0f;
+    spring.b = 1.0f;
+    spring.k = 100.0f;
 
     SetTargetFPS(FPS);
 
     float accumulator = 0;
-    float force = 500.0f;
+    bool stretched = false;
+    bool clicked = false;
 
     while (!WindowShouldClose()) {
         float delta_time = GetFrameTime();
         Vector2 forces = Vector2Zero(); // every frame set the forces to a 0 vector
 
-        // Adds forces with the magnitude of 100 in the direction given by WASD inputs
-        if(IsKeyDown(KEY_W)) {
-            forces = Vector2Add(forces, {0, -force});
+        // Do spring physics
+        Vector2 spring_force;
+
+        if(CheckCollisionPointCircle(GetMousePosition(), balls[0].position, balls[0].radius) && balls[0].isCueBall) {
+            if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                forces = Vector2Zero();
+                clicked = true;
+            }
         }
-        if(IsKeyDown(KEY_A)) {
-            forces = Vector2Add(forces, {-force, 0});
+
+        
+
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && clicked) {
+            spring.spring_end = GetMousePosition();
+            stretched = true;
         }
-        if(IsKeyDown(KEY_S)) {
-            forces = Vector2Add(forces, {0, force});
+
+        spring.spring_start = balls[0].position;
+        Vector2 D = Vector2Subtract(spring.spring_end, spring.spring_start);
+        float D_length = Vector2Length(D);
+        if (D_length > MAX_STRING_POWER) {
+                D_length = MAX_STRING_POWER;
         }
-        if(IsKeyDown(KEY_D)) {
-            forces = Vector2Add(forces, {force, 0});
+        // cout << spring.spring_end.x << ", " << spring.spring_end.y << endl;
+        
+        Vector2 D_norm = Vector2Normalize(D);
+        cout << D_length << endl;
+ 
+        if(IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && clicked && stretched) { 
+            spring_force = Vector2Scale(D_norm, -spring.k * (D_length - spring.rest_length));
+            spring_force = Vector2Subtract(spring_force, Vector2Scale(balls[0].velocity, spring.b)); // damper
+            forces = Vector2Add(forces, spring_force);
+
+            stretched = false;
+            clicked = false;
         }
 
         // Does Vector - Scalar multiplication with the sum of all forces and the inverse mass of the ball
@@ -189,11 +257,13 @@ int main() {
         // Physics step
         accumulator += delta_time;
         while(accumulator >= TIMESTEP) {
+            
             // ------ SEMI-IMPLICIT EULER INTEGRATION -------
             // Computes for velocity using v(t + dt) = v(t) + (a(t) * dt)
             for(int i = 0; i < ballCount; i++) {
                 int currentBall = i;
                 
+                // check collision ball to ball
                 for(int j = 0; j < ballCount; j++){
                     if(j == currentBall){
                         continue;
@@ -207,18 +277,30 @@ int main() {
                 // Computes for change in position using x(t + dt) = x(t) + (v(t + dt) * dt)
                 balls[i].position = Vector2Add(balls[i].position, Vector2Scale(balls[i].velocity, TIMESTEP));
                 
-                // Negates the velocity at x and y if the object hits a wall. (Basic Collision Detection)
-                if(balls[i].position.x + balls[i].radius >= WINDOW_WIDTH || balls[i].position.x - balls[i].radius <= 0) {
-                    balls[i].velocity.x *= -1;
-                }
-                if(balls[i].position.y + balls[i].radius >= WINDOW_HEIGHT || balls[i].position.y - balls[i].radius <= 0) {
-                    balls[i].velocity.y *= -1;
+                // rectangle wall collision
+                for(int w = 0; w < 4; w++) {
+                    // check collosion with walls
+                    CircleToAABBCollision(balls[i], walls[w]); 
                 }
             }
+
             accumulator -= TIMESTEP;
             
         }
-        
+
+        // killing balls process
+        for (int i = 0; i < ballCount; i++) {
+            for (int j = 0; j < 4; j ++) {
+                bool score = CheckCollisionCircles(balls[i].position, balls[i].radius, pockets[j].position, pockets[j].radius-10.0f);
+                if (score) {
+                    ballCount = ballCount - 1;
+                    for (int j = i; j < ballCount; j++)
+                        balls[j] = balls[j + 1];
+                    break;
+                }
+            }
+        }
+            
         for (int i = 0; i < particleCount; i++) {
             if (particles[i].isActive) {
                 particles[i].position.x += particles[i].direction.x * particles[i].speed * delta_time;
@@ -238,6 +320,8 @@ int main() {
                 }
             }
         }
+
+
         BeginDrawing();
         ClearBackground(GREEN);
         DrawBoard(walls, pockets);
@@ -246,11 +330,17 @@ int main() {
         }
         for (int i = 0; i < particleCount; i++) {
             if (particles[i].isActive) {
-                // DrawCircle(particles[i].position.x, particles[i].position.y, 5, particles[i].color);
+                DrawCircle(particles[i].position.x, particles[i].position.y, 5, particles[i].color);
                 DrawTextureEx(texture, {particles[i].position.x, particles[i].position.y}, particles[i].rotation , 0.25, particles[i].color);
             }
         }
         // DrawCircleV(ball.position, ball.radius, ball.color);
+        // Draw the stick
+        // Vector2 stick = Vector2Subtract(spring.spring_end, spring.spring_start);
+        // Vector2 stick_clamped = Vector2ClampValue(stick, 0, MAX_STRING_POWER);
+        if (clicked && stretched) {
+            DrawLineEx(spring.spring_start, spring.spring_end, 5.0f, YELLOW);
+        }
         EndDrawing();
     }
 
