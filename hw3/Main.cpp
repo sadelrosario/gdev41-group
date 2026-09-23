@@ -13,6 +13,7 @@ const float FRICTION = 0.5;
 const float ELASTICITY_COEFFICIENT = 1.0f; // 1.0f is a perfect elastic collision, 0.0f is a perfect inelastic collision
 const Vector2 GRAVITY = {0, 1000};
 const float MAX_STRING_POWER = 300;
+const float STOP_ZONE = 5.0f;
 
 struct Ball {
     Vector2 position;
@@ -105,6 +106,16 @@ void DrawBoard(Wall (&wallArray)[4], Ball (&holeArray)[4]){
 float GetRandomFloat(float min, float max) {
     float randomVal = min + (max - min) * ((float)GetRandomValue(0, 10000) / 10000.0f);
     return randomVal;
+}
+
+
+bool AllBallsStopped(Ball (&ballArray)[5], int count){
+    for(int i = 0; i < count; i++){
+        if(Vector2Length(ballArray[i].velocity) > STOP_ZONE){
+            return false;
+        }
+    }
+    return true;
 }
 
 // This is for spawning multiple at a time since the collision impulse will only happen once
@@ -213,20 +224,25 @@ int main() {
     while (!WindowShouldClose()) {
         float delta_time = GetFrameTime();
         Vector2 forces = Vector2Zero(); // every frame set the forces to a 0 vector
-
+        bool ballsStopped = AllBallsStopped(balls, ballCount);
+        bool hoveringOnBall = CheckCollisionPointCircle(GetMousePosition(), balls[0].position, balls[0].radius) && balls[0].isCueBall;
         // Do spring physics
         Vector2 spring_force;
 
-        if(CheckCollisionPointCircle(GetMousePosition(), balls[0].position, balls[0].radius) && balls[0].isCueBall) {
+        if((hoveringOnBall && ballsStopped) || clicked) {
+            SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
             if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-                forces = Vector2Zero();
+                // forces = Vector2Zero();
                 clicked = true;
             }
+        }else{
+            SetMouseCursor(MOUSE_CURSOR_ARROW);
         }
+
 
         
 
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && clicked) {
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && clicked && ballsStopped) {
             spring.spring_end = GetMousePosition();
             stretched = true;
         }
@@ -242,10 +258,13 @@ int main() {
         Vector2 D_norm = Vector2Normalize(D);
         cout << D_length << endl;
  
-        if(IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && clicked && stretched) { 
-            spring_force = Vector2Scale(D_norm, -spring.k * (D_length - spring.rest_length));
-            spring_force = Vector2Subtract(spring_force, Vector2Scale(balls[0].velocity, spring.b)); // damper
-            forces = Vector2Add(forces, spring_force);
+        if(IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && clicked && stretched && ballsStopped) { 
+            // spring_force = Vector2Scale(D_norm, -spring.k * (D_length - spring.rest_length));
+            // spring_force = Vector2Subtract(spring_force, Vector2Scale(balls[0].velocity, spring.b)); // damper
+            // forces = Vector2Add(forces, spring_force);
+            float shot_power = 3.0f;
+            Vector2 impulse = Vector2Scale(D_norm,-shot_power*D_length);
+            balls[0].velocity = Vector2Add(balls[0].velocity, Vector2Scale(impulse, balls[0].inverse_mass));
 
             stretched = false;
             clicked = false;
@@ -282,20 +301,35 @@ int main() {
                     // check collosion with walls
                     CircleToAABBCollision(balls[i], walls[w]); 
                 }
+
+                //Stopping the Balls
+                for (int i = 0; i < ballCount; i++){
+                    if (Vector2Length(balls[i].velocity) < STOP_ZONE){
+                        balls[i].velocity = Vector2Zero();
+                    }
+                }
+
             }
 
             accumulator -= TIMESTEP;
             
         }
 
+        
         // killing balls process
         for (int i = 0; i < ballCount; i++) {
             for (int j = 0; j < 4; j ++) {
                 bool score = CheckCollisionCircles(balls[i].position, balls[i].radius, pockets[j].position, pockets[j].radius-10.0f);
                 if (score) {
+                    if(i == 0){
+                        balls[i].velocity = Vector2Zero();
+                        balls[i].position = {screenCenterX - 200, screenCenterY};
+                        break;
+                    }
+                    SpawnParticles(pockets[j].position);
                     ballCount = ballCount - 1;
-                    for (int j = i; j < ballCount; j++)
-                        balls[j] = balls[j + 1];
+                    for (int k = i; k < ballCount; k++)
+                        balls[k] = balls[k + 1];
                     break;
                 }
             }
@@ -330,7 +364,6 @@ int main() {
         }
         for (int i = 0; i < particleCount; i++) {
             if (particles[i].isActive) {
-                DrawCircle(particles[i].position.x, particles[i].position.y, 5, particles[i].color);
                 DrawTextureEx(texture, {particles[i].position.x, particles[i].position.y}, particles[i].rotation , 0.25, particles[i].color);
             }
         }
@@ -338,8 +371,12 @@ int main() {
         // Draw the stick
         // Vector2 stick = Vector2Subtract(spring.spring_end, spring.spring_start);
         // Vector2 stick_clamped = Vector2ClampValue(stick, 0, MAX_STRING_POWER);
-        if (clicked && stretched) {
-            DrawLineEx(spring.spring_start, spring.spring_end, 5.0f, YELLOW);
+        if (clicked && stretched && ballsStopped) {
+            Vector2 stick = Vector2Subtract(spring.spring_end, spring.spring_start);
+            Vector2 stick_clamp = Vector2ClampValue(stick, 0, MAX_STRING_POWER);
+            Vector2 stick_end = Vector2Add(spring.spring_start, stick_clamp);
+
+            DrawLineEx(spring.spring_start, stick_end, 5.0f, YELLOW);
         }
         EndDrawing();
     }
