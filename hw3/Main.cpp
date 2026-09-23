@@ -14,6 +14,8 @@ const float ELASTICITY_COEFFICIENT = 1.0f; // 1.0f is a perfect elastic collisio
 const Vector2 GRAVITY = {0, 1000};
 const float MAX_STRING_POWER = 300;
 const float STOP_ZONE = 5.0f;
+const float screenCenterX = WINDOW_WIDTH / 2;
+const float screenCenterY = WINDOW_HEIGHT / 2;
 
 struct Ball {
     Vector2 position;
@@ -176,8 +178,6 @@ void CircleToAABBCollision(Ball& ball, Wall& wall) {
 
 int main() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Homework 3 - Pool");
-    float screenCenterX = WINDOW_WIDTH / 2;
-    float screenCenterY = WINDOW_HEIGHT / 2;
     Texture texture = LoadTexture("five-pointed-star.png");
     //Initializing Balls
     float ballRadius = 25.0f;
@@ -223,6 +223,18 @@ int main() {
 
     while (!WindowShouldClose()) {
         float delta_time = GetFrameTime();
+
+        // reset key - R
+        if (IsKeyPressed(KEY_R)) {
+            cout << "RESET\n";
+            ballCount = 5; // because this count changes when a ball falls into a pocket
+            balls[0] = cueBall;
+            balls[1] = ballOne;
+            balls[2] = ballTwo;
+            balls[3] = ballThree;
+            balls[4] = ballFour;
+        }
+
         Vector2 forces = Vector2Zero(); // every frame set the forces to a 0 vector
         bool ballsStopped = AllBallsStopped(balls, ballCount);
         bool hoveringOnBall = CheckCollisionPointCircle(GetMousePosition(), balls[0].position, balls[0].radius) && balls[0].isCueBall;
@@ -256,7 +268,7 @@ int main() {
         // cout << spring.spring_end.x << ", " << spring.spring_end.y << endl;
         
         Vector2 D_norm = Vector2Normalize(D);
-        cout << D_length << endl;
+        // cout << D_length << endl;
  
         if(IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && clicked && stretched && ballsStopped) { 
             // spring_force = Vector2Scale(D_norm, -spring.k * (D_length - spring.rest_length));
