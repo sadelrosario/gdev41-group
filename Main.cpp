@@ -43,6 +43,7 @@ struct Ball {
     bool isBigBall;
     Color color;
     vector<Ball*> collidedBalls;
+    bool gridOperated;
 
     Ball(Vector2 pos, bool big) {
         position = pos;
@@ -53,6 +54,7 @@ struct Ball {
         acceleration = Vector2Zero();
         velocity = {GetRandomFloat(-200, 200), GetRandomFloat(-200, 200)};
         isBigBall = big;
+        gridOperated = false;
     }
 };
 
@@ -178,7 +180,10 @@ int main() {
         // re-assign grid cells to balls
         for (Ball& ball : balls) {
             ballAABB(ball, cellSize, cells);
+            // cout<<"grid assign = POS: "<<ball.position.x<<", "<<ball.position.y<<endl;
+            // cout<<"grid assign = VELO: "<<ball.velocity.x<<", "<<ball.velocity.y<<endl;
             ball.collidedBalls.clear();
+            ball.gridOperated = false;
         }
 
         // note which cells have balls
@@ -206,6 +211,15 @@ int main() {
                             Ball* otherBall = cell->ballsInside[j];
 
                             // check if other ball has already been collided
+                            // auto alreadyCollided = find(currentBall->collidedBalls.begin(), currentBall->collidedBalls.end(), otherBall);
+                            // bool alreadyCollided = false;
+                            // for (auto ball : currentBall->collidedBalls) {
+                            //     if (ball == otherBall) {
+                            //         alreadyCollided = true;
+                            //         break;
+                            //     }
+                            // }
+                            // check if other ball has already been collided
                             auto alreadyCollided = find(currentBall->collidedBalls.begin(), currentBall->collidedBalls.end(), otherBall);
 
                             // if not in collidedBalls array, proceed with collision checks
@@ -217,20 +231,35 @@ int main() {
                                 // skip collision check; the other ball has already been collision-checked with
                                 continue;
                             }
+
+                            // if not in collidedBalls array, proceed with collision checks
+                            // https://www.geeksforgeeks.org/cpp/check-if-vector-contains-given-element-in-cpp/
+                            // if (alreadyCollided == false) {
+                            //     // currentBall->collidedBalls.push_back(otherBall);  
+                            //     CircleToCircleCollision(*currentBall, *otherBall);
+                            // } else {
+                            //     // skip collision check; the other ball has already been collision-checked with
+                            //     continue;
                             
                         }
-                        currentBall->velocity = Vector2Add(currentBall->velocity, Vector2Scale(currentBall->acceleration, TIMESTEP));
-                        // Computes for change in position using x(t + dt) = x(t) + (v(t + dt) * dt)
-                        currentBall->position = Vector2Add(currentBall->position, Vector2Scale(currentBall->velocity, TIMESTEP));
                         
-                        // EDGE CHECK
-                        // Negates the velocity at x and y if the object hits a wall. (Basic Collision Detection)
-                        if(currentBall->position.x + currentBall->radius >= WINDOW_WIDTH || currentBall->position.x - currentBall->radius <= 0) {
-                            currentBall->velocity.x *= -1;
+                        if(!currentBall->gridOperated) {
+                            currentBall->velocity = Vector2Add(currentBall->velocity, Vector2Scale(currentBall->acceleration, TIMESTEP));
+                            // Computes for change in position using x(t + dt) = x(t) + (v(t + dt) * dt)
+                            currentBall->position = Vector2Add(currentBall->position, Vector2Scale(currentBall->velocity, TIMESTEP));
+
+                            // EDGE CHECK
+                            // Negates the velocity at x and y if the object hits a wall. (Basic Collision Detection)
+                            if(currentBall->position.x + currentBall->radius >= WINDOW_WIDTH || currentBall->position.x - currentBall->radius <= 0) {
+                                currentBall->velocity.x *= -1;
+                            }
+                            if(currentBall->position.y + currentBall->radius >= WINDOW_HEIGHT || currentBall->position.y - currentBall->radius <= 0) {
+                                currentBall->velocity.y *= -1;
+                            }
                         }
-                        if(currentBall->position.y + currentBall->radius >= WINDOW_HEIGHT || currentBall->position.y - currentBall->radius <= 0) {
-                            currentBall->velocity.y *= -1;
-                        }
+
+                        currentBall->gridOperated = true;
+                        
                     }
                 }
             accumulator -= TIMESTEP;
