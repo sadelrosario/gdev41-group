@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <algorithm>
 
 using namespace std;
 
@@ -41,6 +42,7 @@ struct Ball {
     float inverse_mass; // A variable for 1 / mass. Used in the calculation for acceleration = sum of forces / mass
     bool isBigBall;
     Color color;
+    vector<Ball*> collidedBalls;
 
     Ball(Vector2 pos, bool big) {
         position = pos;
@@ -85,6 +87,9 @@ void CircleToCircleCollision(Ball& ball1, Ball&  ball2){
         
         ball1.velocity = ball1.velocity + Vector2Scale(collision_normal, impulse * ball1.inverse_mass);
         ball2.velocity = ball2.velocity - Vector2Scale(collision_normal, impulse * ball2.inverse_mass);
+
+        ball1.collidedBalls.push_back(&ball2);
+        ball2.collidedBalls.push_back(&ball1);
     }
 };
 
@@ -108,31 +113,6 @@ void ballAABB(Ball& ball, int cellsize, vector<GridCell*>& cells) {
         }
     }   
 }
-
-
-// void AABBCollision(Ball& ball, GridCell& cell) {
-//     // get cell min max
-//     Vector2 cell_min =  cell.position; 
-//     Vector2 cell_max = {cell.position.x+cell.size.x, cell.position.y+cell.size.y}; 
-
-//     // turn ball into aabb
-//     // Vector2 ball.
-    
-//     Vector2 closest_point = Vector2Clamp(ball.position, min, max);  
-//     Vector2 collision_normal = Vector2Subtract(ball.position, closest_point);
-//     float distance = Vector2Length(collision_normal);
-    
-//     if(distance < ball.radius) {
-//         // do collision response
-//         Vector2 relVelA = Vector2Subtract(ball.velocity, cell.velocity);
-//         float velAlongNormal = Vector2DotProduct(relVelA, collision_normal);
-//         float impulseNumerator = (1.0f + ELASTICITY_COEFFICIENT) * velAlongNormal;
-//         float impulseDenominator = Vector2DotProduct(collision_normal, collision_normal) * (ball.inverse_mass + cell.inverse_mass);
-//         float impulse = -(impulseNumerator / impulseDenominator);
-//         ball.velocity = ball.velocity + Vector2Scale(collision_normal, impulse * ball.inverse_mass);
-
-//     }
-// };
 
 int main() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Exercise 5 - Uniform Grid");
@@ -189,13 +169,19 @@ int main() {
             }
         }
 
+        // remove balls
         activeCells.clear();
         for (GridCell* cell : cells) {
             cell->ballsInside.clear();
         }
+
+        // re-assign grid cells to balls
         for (Ball& ball : balls) {
             ballAABB(ball, cellSize, cells);
+            ball.collidedBalls.clear();
         }
+
+        // note which cells have balls
         for (GridCell* cell : cells) {
             if (!cell->ballsInside.empty()) {
                 activeCells.push_back(cell);
@@ -208,15 +194,30 @@ int main() {
         // Physics step
         accumulator += delta_time;
         while(accumulator >= TIMESTEP) {
-            
             // ------ SEMI-IMPLICIT EULER INTEGRATION -------
             // Computes for velocity using v(t + dt) = v(t) + (a(t) * dt)
                 for (GridCell* cell : activeCells){
+
                     for (int i = 0; i < cell->ballsInside.size(); i++) {
                         Ball* currentBall = cell->ballsInside[i];
-                        for (int j = i + 1; j < cell->ballsInside.size(); j++) {
+                        // make it so that ball collision is not mistakenly repeated
+                        // only check everything after the ball in the list
+                        for (int j = i+1; j < cell->ballsInside.size(); j++) {
                             Ball* otherBall = cell->ballsInside[j];
-                            CircleToCircleCollision(*currentBall, *otherBall);
+
+                            // check if other ball has already been collided
+                            auto alreadyCollided = find(currentBall->collidedBalls.begin(), currentBall->collidedBalls.end(), otherBall);
+
+                            // if not in collidedBalls array, proceed with collision checks
+                            // https://www.geeksforgeeks.org/cpp/check-if-vector-contains-given-element-in-cpp/
+                            if (alreadyCollided == currentBall->collidedBalls.end()) {
+                                // currentBall->collidedBalls.push_back(otherBall);  
+                                CircleToCircleCollision(*currentBall, *otherBall);
+                            } else {
+                                // skip collision check; the other ball has already been collision-checked with
+                                continue;
+                            }
+                            
                         }
                         currentBall->velocity = Vector2Add(currentBall->velocity, Vector2Scale(currentBall->acceleration, TIMESTEP));
                         // Computes for change in position using x(t + dt) = x(t) + (v(t + dt) * dt)
