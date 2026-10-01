@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <string>
 
 using namespace std;
 
@@ -15,7 +16,7 @@ const float MAX_STRING_POWER = 300;
 const float STOP_ZONE = 5.0f;
 const float screenCenterX = WINDOW_WIDTH / 2;
 const float screenCenterY = WINDOW_HEIGHT / 2;
-const int cellSize = 30;
+const int cellSize = 70;
 
 
 float GetRandomFloat(float min, float max) {
@@ -33,14 +34,13 @@ Color RandomColor() {
 
 struct Ball {
     Vector2 position;
+    Vector2 velocity;
+    Vector2 acceleration;
     float radius;
-    Color color;
     float mass;
     float inverse_mass; // A variable for 1 / mass. Used in the calculation for acceleration = sum of forces / mass
-    Vector2 acceleration;
-    Vector2 velocity;
-
     bool isBigBall;
+    Color color;
 
     Ball(Vector2 pos, bool big) {
         position = pos;
@@ -56,8 +56,16 @@ struct Ball {
 
 struct GridCell {
     Vector2 position;
+    // Vector 2 for position (1,2) (1,1) or sum shi
     Vector2 size;
+    Vector2 round_pos;
     vector<Ball*> ballsInside;
+
+    GridCell(Vector2 pos){
+        position = pos;
+        size = {(float)cellSize, (float)cellSize };
+        round_pos = {pos.x/cellSize, pos.y/cellSize};
+    }
 };
 
 void CircleToCircleCollision(Ball& ball1, Ball&  ball2){
@@ -138,19 +146,15 @@ int main() {
 
     for (int y = 0; y < WINDOW_HEIGHT; y += cellSize) {
         for (int x = 0; x < WINDOW_WIDTH; x += cellSize) {
-            cells.push_back(new GridCell{
-                {static_cast<float>(x), static_cast<float>(y)},
-                {static_cast<float>(cellSize), static_cast<float>(cellSize)},
-                {}
-            });
+            cells.push_back(new GridCell{{(float)x, (float)y}});
         }
     }
 
     SetTargetFPS(FPS);
 
     float accumulator = 0;
-    bool stretched = false;
-    bool clicked = false;
+    bool paused = false;
+    bool gridEnabled = true;
     int clickCount = 0;
 
     while (!WindowShouldClose()) {
@@ -171,6 +175,19 @@ int main() {
                 clickCount = 0;
             }
         }     
+
+        if (IsKeyPressed(KEY_V)){
+            gridEnabled = !gridEnabled;
+        }
+
+        if (IsKeyPressed(KEY_P)){
+            paused = !paused;
+            if (paused){
+                delta_time = 0;
+            }else{
+                delta_time = GetFrameTime();
+            }
+        }
 
         activeCells.clear();
         for (GridCell* cell : cells) {
@@ -197,37 +214,43 @@ int main() {
                 for (GridCell* cell : activeCells){
                     for (int i = 0; i < cell->ballsInside.size(); i++) {
                         Ball* currentBall = cell->ballsInside[i];
-
                         for (int j = i + 1; j < cell->ballsInside.size(); j++) {
                             Ball* otherBall = cell->ballsInside[j];
                             CircleToCircleCollision(*currentBall, *otherBall);
                         }
                         currentBall->velocity = Vector2Add(currentBall->velocity, Vector2Scale(currentBall->acceleration, TIMESTEP));
-                    // Computes for change in position using x(t + dt) = x(t) + (v(t + dt) * dt)
+                        // Computes for change in position using x(t + dt) = x(t) + (v(t + dt) * dt)
                         currentBall->position = Vector2Add(currentBall->position, Vector2Scale(currentBall->velocity, TIMESTEP));
-
-                    // EDGE CHECK
-                    // Negates the velocity at x and y if the object hits a wall. (Basic Collision Detection)
-                    if(currentBall->position.x + currentBall->radius >= WINDOW_WIDTH || currentBall->position.x - currentBall->radius <= 0) {
-                        currentBall->velocity.x *= -1;
-                    }
-                    if(currentBall->position.y + currentBall->radius >= WINDOW_HEIGHT || currentBall->position.y - currentBall->radius <= 0) {
-                        currentBall->velocity.y *= -1;
+                        
+                        // EDGE CHECK
+                        // Negates the velocity at x and y if the object hits a wall. (Basic Collision Detection)
+                        if(currentBall->position.x + currentBall->radius >= WINDOW_WIDTH || currentBall->position.x - currentBall->radius <= 0) {
+                            currentBall->velocity.x *= -1;
+                        }
+                        if(currentBall->position.y + currentBall->radius >= WINDOW_HEIGHT || currentBall->position.y - currentBall->radius <= 0) {
+                            currentBall->velocity.y *= -1;
+                        }
                     }
                 }
-
-            }
-            
             accumulator -= TIMESTEP;
-            
         }
 
         BeginDrawing();
         ClearBackground(WHITE);
+        if(gridEnabled){
+            for (const GridCell* cell : cells) {
+                DrawRectangleLines( (int)cell->position.x, (int)cell->position.y, (int)cell->size.x, (int)cell->size.y,RED);
+                DrawText(TextFormat("(%d, %d)", (int)cell->round_pos.x, (int)cell->round_pos.y ),  (int)cell->position.x,  (int)cell->position.y, 12, BLACK);
+                DrawText(TextFormat(" %d", (int)cell->ballsInside.size()), (int)(cell->position.x + (cellSize/2)-10),  (int)(cell->position.y + (cellSize/2)-10), 20, BLACK);
+            }
+        }
+        
         for (const Ball& ball : balls) {
             DrawCircleV(ball.position, ball.radius, ball.color);
         }
-    
+        
+        DrawText(TextFormat("Number of Balls: %d", ballCount), 10, 10, 34, BLACK);
+        DrawText("Press V to Enable/Disable Grid.", 10, 44, 34, BLACK);
         EndDrawing();
     }
 
