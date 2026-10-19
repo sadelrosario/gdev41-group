@@ -67,6 +67,52 @@ struct UiLibrary
     DrawText(text.c_str(), bounds.x, bounds.y, 14, BLACK);
     return result;
     }
+
+    bool Checkbox (int id, const std::string& text, const Rectangle& bounds, bool* value)
+    {
+        
+        bool result = false;
+
+        //if the checkbox is active
+        if(id == active){
+            if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+            {
+            // Make sure that we are still the hot widget
+            // (User might have dragged mouse to another widget, in which case
+            // we will not count as a button click)
+                if (id == hot)
+                {
+                    result = true;
+                    *value = !(*value);
+                }
+                // Set ourselves to not be active anymore
+                active = -1;
+            }
+        }
+
+        if(id == hot){
+            if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+                active = id;
+            }
+        }
+
+        if(CheckCollisionPointRec(GetMousePosition(), bounds)){
+            hot = id;
+        }
+        else if (hot == id)
+        {
+            hot = -1;
+        }
+
+        DrawRectangleLines(bounds.x, bounds.y, 20, 20, BLACK);
+        if(*value){
+            DrawRectangle(bounds.x+3, bounds.y+3, 14, 14, GRAY);
+        }
+
+        DrawText(text.c_str(), bounds.x + 40, bounds.y, 14, BLACK);
+        return result;
+    };
+
 };
 int main()
 {
@@ -74,19 +120,34 @@ int main()
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Immediate Mode");
     SetTargetFPS(60);
     UiLibrary uiLibrary;
+    bool lockScreen = false;
 
     while (!WindowShouldClose())
     {
         ClearBackground(WHITE);
         BeginDrawing();
-        if (uiLibrary.Button(0, "Hello!", { 10, 10, 80, 40 }))
+        if (uiLibrary.Button(0, "800x600", { 10, 10, 80, 40 }))
         {
-            std::cout << "Hello!" << std::endl;
+            if(!lockScreen){
+                SetWindowSize(800,600);
+            }
         }
-            if (uiLibrary.Button(1, "Hi!", { 100, 10, 80, 40 }))
+        
+        if (uiLibrary.Button(1, "1280x720", { 100, 10, 80, 40 }))
         {
-            std::cout << "Hi!" << std::endl;
+            if(!lockScreen){
+                SetWindowSize(1280, 720);
+            }
         }
+
+        if (uiLibrary.Button(2, "1366x768", { 190, 10, 80, 40 }))
+        {
+            if(!lockScreen){
+                SetWindowSize(1366, 768);
+            }
+        }
+
+        if (uiLibrary.Checkbox(3, "Lock Screen", { 10, 50, 100, 40 }, &lockScreen));
         EndDrawing();
     }
     CloseWindow();

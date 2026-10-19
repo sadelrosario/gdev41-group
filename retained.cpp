@@ -127,7 +127,9 @@ struct Checkbox : public UIComponent
     // Text to be displayed
     std::string text;
     bool activated = false;
-    void (*funcptr)(bool) = nullptr;
+    bool* activeValue;
+
+    // void (*funcptr)(bool) = nullptr;
     // Draw
     void Draw() override 
     {
@@ -149,16 +151,17 @@ struct Checkbox : public UIComponent
         if (CheckCollisionPointRec(click_position, bounds))
         {
             activated = !activated;
-            funcptr(activated);
+            *activeValue = activated;
+            // funcptr(activated);
             return true;
         }
         return false;
     }
 
-    void setFunc(void(*func)(bool)) 
-    {
-        funcptr = func;
-    }
+    // void setFunc(void(*func)(bool)) 
+    // {
+    //     funcptr = func;
+    // }
 
 };
 
@@ -249,7 +252,8 @@ int main()
     checker.text = "Lock Screen Size";
     checker.bounds = { 10, 50, 100, 40 };
     ui_library.root_container.AddChild(&checker);
-    checker.setFunc(*LockScreen);
+    // checker.setFunc(*LockScreen);
+    checker.activeValue = &lockScreen;
 
     while (!WindowShouldClose())
     {
