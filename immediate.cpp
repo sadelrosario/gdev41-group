@@ -39,7 +39,7 @@ struct UiLibrary
     if (id == hot)
     {
     // If the user pressed the left mouse button, that means the user
-    started
+    // started
     // interacting with this widget, so we set this widget as active
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
@@ -55,9 +55,9 @@ struct UiLibrary
     // If the mouse cursor is not on top of this widget, and this widget
     // was previously the hot widget, set the hot widget to -1
     // We check if this widget was the previously hot widget since there is a
-    possibility that
+    //possibility that
     // the hot widget is now a different widget, and we don't want to overwrite
-    that with -1
+    //that with -1
     else if (hot == id)
     {
     hot = -1;
@@ -70,24 +70,25 @@ struct UiLibrary
 };
 int main()
 {
-int WINDOW_WIDTH = 800, WINDOW_HEIGHT = 600;
-InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Immediate Mode");
-SetTargetFPS(60);
-UiLibrary uiLibrary;
-while (!WindowShouldClose())
-{
-ClearBackground(WHITE);
-BeginDrawing();
-if (uiLibrary.Button(0, "Hello!", { 10, 10, 80, 40 }))
-{
-std::cout << "Hello!" << std::endl;
-}
-if (uiLibrary.Button(1, "Hi!", { 100, 10, 80, 40 }))
-{
-std::cout << "Hi!" << std::endl;
-}
-EndDrawing();
-}
-CloseWindow();
-return 0;
+    int WINDOW_WIDTH = 800, WINDOW_HEIGHT = 600;
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Immediate Mode");
+    SetTargetFPS(60);
+    UiLibrary uiLibrary;
+
+    while (!WindowShouldClose())
+    {
+        ClearBackground(WHITE);
+        BeginDrawing();
+        if (uiLibrary.Button(0, "Hello!", { 10, 10, 80, 40 }))
+        {
+            std::cout << "Hello!" << std::endl;
+        }
+            if (uiLibrary.Button(1, "Hi!", { 100, 10, 80, 40 }))
+        {
+            std::cout << "Hi!" << std::endl;
+        }
+        EndDrawing();
+    }
+    CloseWindow();
+    return 0;
 }
