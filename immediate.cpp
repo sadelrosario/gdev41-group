@@ -62,9 +62,19 @@ struct UiLibrary
     {
     hot = -1;
     }
-    // Draw our button regardless of what happens
-    DrawRectangleRec(bounds, GRAY);
-    DrawText(text.c_str(), bounds.x, bounds.y, 14, BLACK);
+    if (id == active) {
+        // button click
+        DrawRectangleRec(bounds, VIOLET);
+        DrawText(text.c_str(), bounds.x, bounds.y, 14, WHITE);
+    } else if (id == hot) {
+        // button hover
+        DrawRectangleRec(bounds, GREEN);
+        DrawText(text.c_str(), bounds.x, bounds.y, 14, BLACK);
+    } else {
+        // Draw our button regardless of what happens
+        DrawRectangleRec(bounds, GRAY);
+        DrawText(text.c_str(), bounds.x, bounds.y, 14, BLACK);
+    }
     return result;
     }
 
