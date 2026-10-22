@@ -78,39 +78,99 @@ struct QuadNode {
 
 
 // recursion function
-void QuadDivision(QuadNode parentNode, int depth) {
+void QuadDivision(QuadNode* parentNode, int depth) {
     
     // base case (MAX DEPTH)
-    if (depth == MAX_DEPTH) {
+    if (depth >= MAX_DEPTH) {
+        return;
         // do nothing; don't have children
     }
-    else {
-        if (parentNode.parent != nullptr) { 
-            // get center
-            Vector2 parent_center = {parentNode.halfWidth, parentNode.halfWidth};
-            // branch out and populate children
-            float new_halfWidth = parentNode.halfWidth/2.0f;
-            QuadNode child1{ new_halfWidth, parentNode.min, parent_center, &parentNode};
-            QuadNode child2{ new_halfWidth, Vector2{parentNode.min.x + new_halfWidth, parentNode.min.y}, Vector2{parent_center.x + new_halfWidth, parentNode.min.y + new_halfWidth}, &parentNode};
-            QuadNode child3{ new_halfWidth, Vector2{parentNode.min.x, parentNode.min.y + new_halfWidth}, Vector2{parent_center.x, parent_center.y + new_halfWidth}, &parentNode};
-            QuadNode child4{ new_halfWidth, parent_center, Vector2{parent_center.x + new_halfWidth, parent_center.y + new_halfWidth}, &parentNode};
 
-            vector<QuadNode*> children = parentNode.children;
+    float childHalf = parentNode->halfWidth / 2.0f;
+    // center of the parent = min + halfWidth
+    Vector2 center = { parentNode->min.x + parentNode->halfWidth, parentNode->min.y + parentNode->halfWidth };
 
-            children.push_back(&child1);
-            children.push_back(&child2);
-            children.push_back(&child3);
-            children.push_back(&child4);
+    Vector2 mins[4] = {
+        parentNode->min,                    // top-left
+        { center.x, parentNode->min.y },         // top-right
+        { parentNode->min.x, center.y },         // bottom-left
+        center                             // bottom-right
+    };
 
-            // next generation
-            depth ++;
-            for (QuadNode* child : children) {
-                QuadDivision(*child, depth);
-            }
-        }
-        
+    for (int i = 0; i < 4; i++) {
+        QuadNode* child = new QuadNode{ childHalf, mins[i], { mins[i].x + parentNode->halfWidth, mins[i].y + parentNode->halfWidth }, parentNode, true};
+        parentNode->children.push_back(child);
+        QuadDivision(child, depth + 1);
     }
+
+    // if (parentNode.parent != nullptr) { 
+    //     // get center
+    //     Vector2 parent_center = {parentNode.halfWidth, parentNode.halfWidth};
+    //     // branch out and populate children
+    //     float new_halfWidth = parentNode.halfWidth/2.0f;
+    //     QuadNode child1{ new_halfWidth, parentNode.min, parent_center, &parentNode};
+    //     QuadNode child2{ new_halfWidth, Vector2{parentNode.min.x + new_halfWidth, parentNode.min.y}, Vector2{parent_center.x + new_halfWidth, parentNode.min.y + new_halfWidth}, &parentNode};
+    //     QuadNode child3{ new_halfWidth, Vector2{parentNode.min.x, parentNode.min.y + new_halfWidth}, Vector2{parent_center.x, parent_center.y + new_halfWidth}, &parentNode};
+    //     QuadNode child4{ new_halfWidth, parent_center, Vector2{parent_center.x + new_halfWidth, parent_center.y + new_halfWidth}, &parentNode};
+
+    //     vector<QuadNode*> children = parentNode.children;
+
+    //     children.push_back(&child1);
+    //     children.push_back(&child2);
+    //     children.push_back(&child3);
+    //     children.push_back(&child4);
+
+    //     // next generation
+    //     depth ++;
+    //     for (QuadNode* child : children) {
+    //         QuadDivision(*child, depth);
+    //     }
+    // }
+        
     
+    
+}
+
+
+bool BallFitsInsideNode(const Ball& ball, const QuadNode& node) {
+    float ballLeft = ball.position.x - ball.radius;
+    float ballRight = ball.position.x + ball.radius;
+    float ballTop = ball.position.y - ball.radius;
+    float ballBottom = ball.position.y + ball.radius;
+
+    return ballLeft >= node.min.x && ballRight <= node.max.x && ballTop >= node.min.y && ballBottom <= node.max.y;
+}
+
+void ClearBallsFromTree(QuadNode* node){
+    node->ballsInside.clear();
+
+    for(QuadNode* child: node->children){
+        ClearBallsFromTree(child);
+    }
+}
+
+void InsertBall(QuadNode* node, Ball* ball) {
+    if (node->children.empty()) {
+        node->ballsInside.push_back(ball);
+        return;
+    }
+
+    for (QuadNode* child : node->children) {
+        if (BallFitsInsideNode(*ball, *child)) {
+            InsertBall(child, ball);
+            return;
+        }
+    }
+
+    node->ballsInside.push_back(ball);
+}
+
+void InsertAllBalls(QuadNode* root, vector<Ball>& balls) {
+    ClearBallsFromTree(root);
+
+    for (Ball& ball : balls) {
+        InsertBall(root, &ball);
+    }
 }
 
 void CircleToCircleCollision(Ball& ball1, Ball&  ball2){
@@ -173,7 +233,7 @@ int main() {
     // root
     QuadNode root = QuadNode{HALF_WIDTH, ROOT_MIN, ROOT_MAX, nullptr};
     // branching recursively from root
-    QuadDivision(root, 0);
+    QuadDivision(&root, 0);
 
     SetTargetFPS(FPS);
 
@@ -239,6 +299,10 @@ int main() {
 
             }
 
+            InsertAllBalls(&root, balls);
+    
+            //Dito lalagay ung collission ng balls
+
             // TO DO: COLLISION CHECK PER NODE + UPDATE BALLS IF CHANGED NODES
             // for (QuadNode* node : nodes){
 
@@ -287,7 +351,10 @@ int main() {
             //         }
             //     }
             accumulator -= TIMESTEP;
+            
         }
+
+
 
         BeginDrawing();
         ClearBackground(WHITE);
