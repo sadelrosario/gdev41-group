@@ -49,9 +49,10 @@ struct Ball {
     float inverse_mass; // A variable for 1 / mass. Used in the calculation for acceleration = sum of forces / mass
     bool isBigBall;
     Color color;
-    vector<Ball*> collidedBalls;
+    // vector<Ball*> collidedBalls;
     bool gridOperated;
     QuadNode* assignedNode; // store the node info the ball was inserted to
+    int nodeIndex;
 
     Ball(Vector2 pos, bool big) {
         position = pos;
@@ -63,6 +64,8 @@ struct Ball {
         velocity = {GetRandomFloat(-200, 200), GetRandomFloat(-200, 200)};
         isBigBall = big;
         gridOperated = false;
+        assignedNode = nullptr;
+        nodeIndex = 0;
     }
 };
 
@@ -153,19 +156,18 @@ void ClearBallsFromTree(QuadNode* node){
 }
 
 void InsertBall(QuadNode* node, Ball* ball) {
-    ball->assignedNode = node;
-    if (node->children.empty()) {
-        node->ballsInside.push_back(ball);
-        return;
-    }
-
-    for (QuadNode* child : node->children) {
-        if (BallFitsInsideNode(*ball, *child)) {
-            InsertBall(child, ball);
-            return;
+    if (!node->children.empty()) {
+        for (QuadNode* child : node->children) {
+            if (BallFitsInsideNode(*ball, *child)) {
+                InsertBall(child, ball);
+                return;
+            }
         }
     }
-
+    
+    
+    ball->assignedNode = node;
+    ball->nodeIndex = (int)node->ballsInside.size();
     node->ballsInside.push_back(ball);
 }
 
@@ -182,10 +184,13 @@ void CircleToCircleCollision(Ball& ball1, Ball&  ball2){
     // cout << "I AM COLLIDING \n";
     Vector2 collision_normal = Vector2Subtract(ball1.position, ball2.position);
     float distance = Vector2Length(collision_normal);
+    float distanceSq = collision_normal.x *collision_normal.x + collision_normal.y *collision_normal.y;
     float radius_sum = ball1.radius + ball2.radius;
+    if (distanceSq >= radius_sum * radius_sum) return;
 
     Vector2 relVelA = Vector2Subtract(ball1.velocity, ball2.velocity);
     float velAlongNormal = Vector2DotProduct(relVelA, collision_normal);
+    if(velAlongNormal >= 0) return;
 
     if(distance < radius_sum && velAlongNormal < 0) {
         float impulseNumerator = (1.0f + ELASTICITY_COEFFICIENT) * velAlongNormal;
@@ -286,7 +291,8 @@ int main() {
     bool paused = false;
     bool gridEnabled = true;
     int clickCount = 0;
-
+    vector<Ball*> candidates;
+    candidates.reserve(3000);
     while (!WindowShouldClose()) {
         float delta_time = GetFrameTime();
 
@@ -312,67 +318,65 @@ int main() {
 
         if (IsKeyPressed(KEY_P)){
             paused = !paused;
-            if (paused){
-                delta_time = 0;
-            }else{
-                delta_time = GetFrameTime();
-            }
         }
-
+        
+        if (paused){
+            delta_time = 0;
+        }else{
+            delta_time = GetFrameTime();
+        }
         // TO-DO: INSERTIONS
         // Recursively populate the children of the nodes which node contains what object
 
         // Physics step
         accumulator += delta_time;
+        // if (accumulator > 2 * TIMESTEP) accumulator = 2 * TIMESTEP; 
         while(accumulator >= TIMESTEP) {
             // ------ SEMI-IMPLICIT EULER INTEGRATION -------
             // Computes for velocity using v(t + dt) = v(t) + (a(t) * dt)
             // test //
-            // for (Ball& ball : balls) {
-            //     ball.velocity = Vector2Add(ball.velocity, Vector2Scale(ball.acceleration, TIMESTEP));
-            //     // Computes for change in position using x(t + dt) = x(t) + (v(t + dt) * dt)
-            //     ball.position = Vector2Add(ball.position, Vector2Scale(ball.velocity, TIMESTEP));
+            for (Ball& ball : balls) {
+                ball.velocity = Vector2Add(ball.velocity, Vector2Scale(ball.acceleration, TIMESTEP));
+                ball.position = Vector2Add(ball.position, Vector2Scale(ball.velocity, TIMESTEP));
 
-            //     // EDGE CHECK
-            //     // Negates the velocity at x and y if the object hits a wall. (Basic Collision Detection)
-            //     if(ball.position.x + ball.radius >= WINDOW_WIDTH || ball.position.x - ball.radius <= 0) {
-            //         ball.velocity.x *= -1;
-            //     }
-            //     if(ball.position.y + ball.radius >= WINDOW_HEIGHT || ball.position.y - ball.radius <= 0) {
-            //         ball.velocity.y *= -1;
-            //     }
+                // EDGE CHECK
+                // Negates the velocity at x and y if the object hits a wall. (Basic Collision Detection)
+                if(ball.position.x + ball.radius >= WINDOW_WIDTH || ball.position.x - ball.radius <= 0) {
+                    ball.velocity.x *= -1;
+                }
+                if(ball.position.y + ball.radius >= WINDOW_HEIGHT || ball.position.y - ball.radius <= 0) {
+                    ball.velocity.y *= -1;
+                }
 
-            // }
+            }
 
             InsertAllBalls(&root, balls);
-    
+            
+            
             //Dito lalagay ung collission ng balls
 
             for (Ball& targetBall : balls) {
-                // basic physics stuff
-                targetBall.velocity = Vector2Add(targetBall.velocity, Vector2Scale(targetBall.acceleration, TIMESTEP));
-                // Computes for change in position using x(t + dt) = x(t) + (v(t + dt) * dt)
-                targetBall.position = Vector2Add(targetBall.position, Vector2Scale(targetBall.velocity, TIMESTEP));
+                candidates.clear(); //reuse the memory rather than new allocation
 
-
-                // --------- COLLISION CHECK ---------
-
-                vector<QuadNode*> nodePaths; // store nodes to traverse here
-                nodePaths.reserve(64); // allocate fixed memory to avoid memory leaks
+                // vector<QuadNode*> nodePaths; // store nodes to traverse here
+                // nodePaths.reserve(64); // allocate fixed memory to avoid memory leaks
                 // start with the target ball's node
                 // find nodes to traverse from ball's node to root (bottom -> top)
-                nodePaths = NodePathMaker(targetBall.assignedNode, nodePaths);
-                nodePaths.push_back(&root); // add the root
-                cout << "DEBUG: LIST OF NODE PATHS\n";
+                // nodePaths = NodePathMaker(targetBall.assignedNode, nodePaths);
+                // nodePaths.push_back(&root); // add the root
+                // // cout << "DEBUG: LIST OF NODE PATHS\n";
                 // for (QuadNode* node : nodePaths) {
                 //     cout << node << endl;
                 // }
-                cout << endl;
+                // cout << endl;
                 
+                
+
 
                 // now that we have the node paths, traverse from top to bottom (start from root)
                 // collect candidates
-                vector<Ball*> candidates;
+                
+                
                 // cout << "DEBUG: LIST OF CANDIDATES\n";
                 // for (Ball* candidate : candidates) {
                 //     cout << candidate << endl;
@@ -381,12 +385,24 @@ int main() {
                 // cout << nodePaths.size() << endl;
 
                 
-                for (int i = nodePaths.size()-1; i < 0; i--) {
-                    cout << "IN" << endl;
-                    // cout << "Traversing Node: " << nodePaths[i] << endl;
-                    for (Ball* ball : nodePaths[i]->ballsInside) {
-                        cout << "Traversing Node: " << ball << endl;
-                        candidates.push_back(ball);
+                // for (int i = nodePaths.size()-1; i >= 0; i--) {
+                //     // cout << "IN" << endl;
+                //     // cout << "Traversing Node: " << nodePaths[i] << endl;
+                //     for (Ball* ball : nodePaths[i]->ballsInside) {
+                //         cout << "Traversing Node: " << ball << endl;
+                //         candidates.push_back(ball);
+                //     }
+                // }
+                QuadNode* own = targetBall.assignedNode;
+                int ownCount = (int)own->ballsInside.size();
+
+                for(int j = targetBall.nodeIndex+1; j< ownCount; j++){
+                    candidates.push_back(own->ballsInside[j]);
+                }
+
+                for (QuadNode* n = own->parent; n != nullptr; n = n->parent){
+                    for (Ball* other : n->ballsInside){
+                        candidates.push_back(other);
                     }
                 }
                 
@@ -396,20 +412,20 @@ int main() {
 
                 // now do collision with candidates
                 for (Ball* ball : candidates) {
-                    Ball& ball2 = *ball;
-                    CircleToCircleCollision(targetBall, ball2);
+                    // Ball& ball2 = *ball;
+                    CircleToCircleCollision(targetBall, *ball);
                 }
 
                 // --------- END OF COLLISION CHECK ---------
 
                 // EDGE CHECK
-                // Negates the velocity at x and y if the object hits a wall. (Basic Collision Detection)
-                if(targetBall.position.x + targetBall.radius >= WINDOW_WIDTH || targetBall.position.x - targetBall.radius <= 0) {
-                    targetBall.velocity.x *= -1;
-                }
-                if(targetBall.position.y + targetBall.radius >= WINDOW_HEIGHT || targetBall.position.y - targetBall.radius <= 0) {
-                    targetBall.velocity.y *= -1;
-                }
+                // // Negates the velocity at x and y if the object hits a wall. (Basic Collision Detection)
+                // if(targetBall.position.x + targetBall.radius >= WINDOW_WIDTH || targetBall.position.x - targetBall.radius <= 0) {
+                //     targetBall.velocity.x *= -1;
+                // }
+                // if(targetBall.position.y + targetBall.radius >= WINDOW_HEIGHT || targetBall.position.y - targetBall.radius <= 0) {
+                //     targetBall.velocity.y *= -1;
+                // }
             }
 
             // for (QuadNode* node : root.children) {
