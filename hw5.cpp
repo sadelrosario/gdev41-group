@@ -84,6 +84,7 @@ void QuadDivision(QuadNode* parentNode, int depth) {
     
     // base case (MAX DEPTH)
     if (depth >= MAX_DEPTH) {
+        parentNode->isChild = true;
         return;
         // do nothing; don't have children
     }
@@ -254,6 +255,11 @@ vector<QuadNode*> NodePathMaker (QuadNode* node, vector<QuadNode*> nodePaths) {
         return nodePaths;
     }
 
+    // // get node paths of children
+    // for (QuadNode* child : node->children) {
+    //     NodePathMaker(child, nodePaths);
+    // }
+
     nodePaths.push_back(node->parent);
     return NodePathMaker(node->parent, nodePaths);
 }
@@ -352,14 +358,15 @@ int main() {
                 // --------- COLLISION CHECK ---------
 
                 vector<QuadNode*> nodePaths; // store nodes to traverse here
+                nodePaths.reserve(64); // allocate fixed memory to avoid memory leaks
                 // start with the target ball's node
                 // find nodes to traverse from ball's node to root (bottom -> top)
                 nodePaths = NodePathMaker(targetBall.assignedNode, nodePaths);
                 nodePaths.push_back(&root); // add the root
                 cout << "DEBUG: LIST OF NODE PATHS\n";
-                for (QuadNode* node : nodePaths) {
-                    cout << node << endl;
-                }
+                // for (QuadNode* node : nodePaths) {
+                //     cout << node << endl;
+                // }
                 cout << endl;
                 
 
@@ -371,14 +378,20 @@ int main() {
                 //     cout << candidate << endl;
                 // }
                 // cout << endl;
+                // cout << nodePaths.size() << endl;
+
                 
                 for (int i = nodePaths.size()-1; i < 0; i--) {
+                    cout << "IN" << endl;
                     // cout << "Traversing Node: " << nodePaths[i] << endl;
                     for (Ball* ball : nodePaths[i]->ballsInside) {
+                        cout << "Traversing Node: " << ball << endl;
                         candidates.push_back(ball);
                     }
                 }
                 
+                // traversing through the nodes
+
 
 
                 // now do collision with candidates
