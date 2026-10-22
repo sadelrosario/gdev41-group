@@ -212,7 +212,6 @@ void DrawActiveNodes(QuadNode* node) {
     }
     
     if (!node->ballsInside.empty()) {
-        // Vector2 center = { node->min.x + node->halfWidth, node->min.y + node->halfWidth };
         DrawRectangleLines(node->min.x, node->min.y, node->max.x-node->min.x, node->max.y-node->min.y, GREEN);
     }
 
