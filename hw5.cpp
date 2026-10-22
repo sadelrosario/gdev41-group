@@ -37,7 +37,6 @@ Color RandomColor() {
     Color randomColor = {r, g, b, 255};
     return randomColor;
 }
-
 struct QuadNode;
 
 struct Ball {
@@ -49,8 +48,6 @@ struct Ball {
     float inverse_mass; // A variable for 1 / mass. Used in the calculation for acceleration = sum of forces / mass
     bool isBigBall;
     Color color;
-    // vector<Ball*> collidedBalls;
-    bool gridOperated;
     QuadNode* assignedNode; // store the node info the ball was inserted to
     int nodeIndex;
 
@@ -63,7 +60,6 @@ struct Ball {
         acceleration = Vector2Zero();
         velocity = {GetRandomFloat(-200, 200), GetRandomFloat(-200, 200)};
         isBigBall = big;
-        gridOperated = false;
         assignedNode = nullptr;
         nodeIndex = 0;
     }
@@ -74,8 +70,10 @@ struct QuadNode {
     float halfWidth;
     Vector2 min;
     Vector2 max;
+
     QuadNode* parent;
     bool isChild;
+    
     vector<QuadNode*> children;
     vector<Ball*> ballsInside;
 };
@@ -108,36 +106,10 @@ void QuadDivision(QuadNode* parentNode, int depth) {
         parentNode->children.push_back(child);
         QuadDivision(child, depth + 1);
     }
-
-    // if (parentNode.parent != nullptr) { 
-    //     // get center
-    //     Vector2 parent_center = {parentNode.halfWidth, parentNode.halfWidth};
-    //     // branch out and populate children
-    //     float new_halfWidth = parentNode.halfWidth/2.0f;
-    //     QuadNode child1{ new_halfWidth, parentNode.min, parent_center, &parentNode};
-    //     QuadNode child2{ new_halfWidth, Vector2{parentNode.min.x + new_halfWidth, parentNode.min.y}, Vector2{parent_center.x + new_halfWidth, parentNode.min.y + new_halfWidth}, &parentNode};
-    //     QuadNode child3{ new_halfWidth, Vector2{parentNode.min.x, parentNode.min.y + new_halfWidth}, Vector2{parent_center.x, parent_center.y + new_halfWidth}, &parentNode};
-    //     QuadNode child4{ new_halfWidth, parent_center, Vector2{parent_center.x + new_halfWidth, parent_center.y + new_halfWidth}, &parentNode};
-
-    //     vector<QuadNode*> children = parentNode.children;
-
-    //     children.push_back(&child1);
-    //     children.push_back(&child2);
-    //     children.push_back(&child3);
-    //     children.push_back(&child4);
-
-    //     // next generation
-    //     depth ++;
-    //     for (QuadNode* child : children) {
-    //         QuadDivision(*child, depth);
-    //     }
-    // }
-        
-    
     
 }
 
-
+//if inside
 bool BallFitsInsideNode(const Ball& ball, const QuadNode& node) {
     float ballLeft = ball.position.x - ball.radius;
     float ballRight = ball.position.x + ball.radius;
@@ -145,6 +117,16 @@ bool BallFitsInsideNode(const Ball& ball, const QuadNode& node) {
     float ballBottom = ball.position.y + ball.radius;
 
     return ballLeft >= node.min.x && ballRight <= node.max.x && ballTop >= node.min.y && ballBottom <= node.max.y;
+}
+
+//check if its intersecting
+bool BallIntersectsNode(const Ball& ball, const QuadNode& node){
+    float ballLeft = ball.position.x - ball.radius;
+    float ballRight = ball.position.x + ball.radius;
+    float ballTop = ball.position.y - ball.radius;
+    float ballBottom = ball.position.y + ball.radius;
+
+    return ballRight >= node.min.x && ballLeft <= node.max.x && ballBottom >= node.min.y && ballTop <= node.max.y;
 }
 
 void ClearBallsFromTree(QuadNode* node){
@@ -156,19 +138,41 @@ void ClearBallsFromTree(QuadNode* node){
 }
 
 void InsertBall(QuadNode* node, Ball* ball) {
-    if (!node->children.empty()) {
-        for (QuadNode* child : node->children) {
-            if (BallFitsInsideNode(*ball, *child)) {
-                InsertBall(child, ball);
-                return;
-            }
+    //if the bottom/child node
+    if (node->children.empty()) {
+        ball->assignedNode = node;
+        ball->nodeIndex = (int)node->ballsInside.size();
+        node->ballsInside.push_back(ball);
+        return;
+    }
+
+    //try to find the child that completly contains the ball
+    for (QuadNode* child : node->children) {
+        if (BallFitsInsideNode(*ball, *child)) {
+            InsertBall(child, ball);
+            return;
         }
     }
-    
-    
+
+    //if wala then stay kung saan sya
     ball->assignedNode = node;
     ball->nodeIndex = (int)node->ballsInside.size();
     node->ballsInside.push_back(ball);
+}
+
+//recursive function
+void QueryCandidates(QuadNode* node, const Ball& target, vector<Ball*>& candidates){
+    if(!BallIntersectsNode(target,*node)){
+        return;
+    } //exit nya
+
+    for(Ball* ball: node->ballsInside){
+        candidates.push_back(ball);
+    }
+
+    for(QuadNode* child: node->children){
+        QueryCandidates(child,target,candidates);
+    } //it goes down deeper
 }
 
 void InsertAllBalls(QuadNode* root, vector<Ball>& balls) {
@@ -186,88 +190,20 @@ void CircleToCircleCollision(Ball& ball1, Ball&  ball2){
     float distance = Vector2Length(collision_normal);
     float distanceSq = collision_normal.x *collision_normal.x + collision_normal.y *collision_normal.y;
     float radius_sum = ball1.radius + ball2.radius;
-    if (distanceSq >= radius_sum * radius_sum) return;
+    if (distanceSq >= radius_sum * radius_sum) return; //early exit to if not touching
 
     Vector2 relVelA = Vector2Subtract(ball1.velocity, ball2.velocity);
     float velAlongNormal = Vector2DotProduct(relVelA, collision_normal);
-    if(velAlongNormal >= 0) return;
+    if(velAlongNormal >= 0) return; // early exit uli if they are separating from each other
 
     if(distance < radius_sum && velAlongNormal < 0) {
         float impulseNumerator = (1.0f + ELASTICITY_COEFFICIENT) * velAlongNormal;
         float impulseDenominator = Vector2DotProduct(collision_normal, collision_normal) * (ball1.inverse_mass + ball2.inverse_mass);
         float impulse = -(impulseNumerator / impulseDenominator);
-        // For Testing
-        // SpawnParticles(ball1.position);
-        
         ball1.velocity = ball1.velocity + Vector2Scale(collision_normal, impulse * ball1.inverse_mass);
         ball2.velocity = ball2.velocity - Vector2Scale(collision_normal, impulse * ball2.inverse_mass);
-
-        // ball1.collidedBalls.push_back(&ball2);
-        // ball2.collidedBalls.push_back(&ball1);
     }
 };
-
-// TO EDIT: used to check if ball should be in which quad node
-// void ballAABB(Ball& ball, int cellsize, vector<GridCell*>& cells) {
-//     // get ball min max
-//     Vector2 ball_min = {ball.position.x-ball.radius, ball.position.y-ball.radius};
-//     Vector2 ball_max = {ball.position.x+ball.radius, ball.position.y+ball.radius};
-//     // get ball grid coverage
-//     int ball_min_cell_x = ball_min.x / cellSize;
-//     int ball_min_cell_y = ball_min.y / cellSize;
-//     int ball_max_cell_x = ball_max.x / cellSize;
-//     int ball_max_cell_y = ball_max.y / cellSize;
-
-//     // TO EDIT : turn to singular quad node
-//     // get all the cells that overlaps with ball
-//     for(int x = ball_min_cell_x; x <= ball_max_cell_x; x++) {
-//         for(int y = ball_min_cell_y; y <= ball_max_cell_y; y++) {
-//             for (int i = 0; i < cells.size(); i++) {
-//                 if(cells[i]->position.x == x * cellsize && cells[i]->position.y == y * cellsize) {
-//                     cells[i]->ballsInside.push_back(&ball);
-//                 }
-//             }
-//         }
-//     }   
-// }
-
-// collision function
-// void QuadCollision(QuadNode* parentNode, int depth, Ball& targetBall) {
-//     // base case - you've already traversed through everything
-//     if (depth > MAX_DEPTH) {
-
-//         return;
-//     }
-
-//     if (!parentNode->ballsInside.empty()) {
-//         for (Ball* ball : parentNode->ballsInside) {
-//             targetBall.collidedBalls.push_back(&ball);
-//         }
-//     }
-
-//     for (QuadNode* child : parentNode->children) {
-
-//         QuadCollision(child, depth + 1, targetBall);
-//     }
-    
-// }
-
-
-// node traversal function
-vector<QuadNode*> NodePathMaker (QuadNode* node, vector<QuadNode*> nodePaths) {
-    // you have reached the root
-    if (!node->isChild) {
-        return nodePaths;
-    }
-
-    // // get node paths of children
-    // for (QuadNode* child : node->children) {
-    //     NodePathMaker(child, nodePaths);
-    // }
-
-    nodePaths.push_back(node->parent);
-    return NodePathMaker(node->parent, nodePaths);
-}
 
 
 int main() {
@@ -292,7 +228,7 @@ int main() {
     bool gridEnabled = true;
     int clickCount = 0;
     vector<Ball*> candidates;
-    candidates.reserve(3000);
+    
     while (!WindowShouldClose()) {
         float delta_time = GetFrameTime();
 
@@ -334,7 +270,7 @@ int main() {
         while(accumulator >= TIMESTEP) {
             // ------ SEMI-IMPLICIT EULER INTEGRATION -------
             // Computes for velocity using v(t + dt) = v(t) + (a(t) * dt)
-            // test //
+            // Movign the balls first
             for (Ball& ball : balls) {
                 ball.velocity = Vector2Add(ball.velocity, Vector2Scale(ball.acceleration, TIMESTEP));
                 ball.position = Vector2Add(ball.position, Vector2Scale(ball.velocity, TIMESTEP));
@@ -350,143 +286,22 @@ int main() {
 
             }
 
+            //inserting the balls into the quadtree
             InsertAllBalls(&root, balls);
             
             
             //Dito lalagay ung collission ng balls
-
             for (Ball& targetBall : balls) {
                 candidates.clear(); //reuse the memory rather than new allocation
 
-                // vector<QuadNode*> nodePaths; // store nodes to traverse here
-                // nodePaths.reserve(64); // allocate fixed memory to avoid memory leaks
-                // start with the target ball's node
-                // find nodes to traverse from ball's node to root (bottom -> top)
-                // nodePaths = NodePathMaker(targetBall.assignedNode, nodePaths);
-                // nodePaths.push_back(&root); // add the root
-                // // cout << "DEBUG: LIST OF NODE PATHS\n";
-                // for (QuadNode* node : nodePaths) {
-                //     cout << node << endl;
-                // }
-                // cout << endl;
-                
-                
-
-
-                // now that we have the node paths, traverse from top to bottom (start from root)
-                // collect candidates
-                
-                
-                // cout << "DEBUG: LIST OF CANDIDATES\n";
-                // for (Ball* candidate : candidates) {
-                //     cout << candidate << endl;
-                // }
-                // cout << endl;
-                // cout << nodePaths.size() << endl;
-
-                
-                // for (int i = nodePaths.size()-1; i >= 0; i--) {
-                //     // cout << "IN" << endl;
-                //     // cout << "Traversing Node: " << nodePaths[i] << endl;
-                //     for (Ball* ball : nodePaths[i]->ballsInside) {
-                //         cout << "Traversing Node: " << ball << endl;
-                //         candidates.push_back(ball);
-                //     }
-                // }
-                QuadNode* own = targetBall.assignedNode;
-                int ownCount = (int)own->ballsInside.size();
-
-                for(int j = targetBall.nodeIndex+1; j< ownCount; j++){
-                    candidates.push_back(own->ballsInside[j]);
-                }
-
-                for (QuadNode* n = own->parent; n != nullptr; n = n->parent){
-                    for (Ball* other : n->ballsInside){
-                        candidates.push_back(other);
-                    }
-                }
-                
-                // traversing through the nodes
-
-
-
+                //recursive query outside
+                QueryCandidates(&root, targetBall, candidates);
                 // now do collision with candidates
                 for (Ball* ball : candidates) {
-                    // Ball& ball2 = *ball;
+                    if(ball <= &targetBall) continue;
                     CircleToCircleCollision(targetBall, *ball);
                 }
-
-                // --------- END OF COLLISION CHECK ---------
-
-                // EDGE CHECK
-                // // Negates the velocity at x and y if the object hits a wall. (Basic Collision Detection)
-                // if(targetBall.position.x + targetBall.radius >= WINDOW_WIDTH || targetBall.position.x - targetBall.radius <= 0) {
-                //     targetBall.velocity.x *= -1;
-                // }
-                // if(targetBall.position.y + targetBall.radius >= WINDOW_HEIGHT || targetBall.position.y - targetBall.radius <= 0) {
-                //     targetBall.velocity.y *= -1;
-                // }
             }
-
-            // for (QuadNode* node : root.children) {
-            //     // cout << node << endl; // finding: each node has 4 children
-            //     // FLAW: we are only going through one level
-            //     cout << "NODE: " << node << endl;
-            //     for (Ball* ball : node->ballsInside) {
-            //         cout << "BALL: " << ball << endl;
-            //     }
-            //     cout << endl;
-            // }
-
-            
-
-            // TO DO: COLLISION CHECK PER NODE + UPDATE BALLS IF CHANGED NODES
-            // for (QuadNode* node : nodes){
-
-            //         for (int i = 0; i < node->ballsInside.size(); i++) {
-            //             Ball* currentBall = node->ballsInside[i];
-            //         //     // make it so that ball collision is not mistakenly repeated
-            //         //     // only check everything after the ball in the list
-            //             for (int j = 0; j < node->ballsInside.size(); j++) {
-
-            //                 if (i = j) { continue; }
-
-            //                 Ball* otherBall = node->ballsInside[j];
-            //                 CircleToCircleCollision(*currentBall, *otherBall);
-
-            //                 // check if other ball has already been collided
-            //                 // // check if other ball has already been collided
-            //                 // auto alreadyCollided = find(currentBall->collidedBalls.begin(), currentBall->collidedBalls.end(), otherBall);
-
-            //                 // // if not in collidedBalls array, proceed with collision checks
-            //                 // // https://www.geeksforgeeks.org/cpp/check-if-vector-contains-given-element-in-cpp/
-            //                 // if (alreadyCollided == currentBall->collidedBalls.end()) {
-            //                 //     // currentBall->collidedBalls.push_back(otherBall);  
-            //                 //     CircleToCircleCollision(*currentBall, *otherBall);
-            //                 // } else {
-            //                 //     // skip collision check; the other ball has already been collision-checked with
-            //                 //     continue;
-            //                 // }
-
-                            
-            //             }
-                        
-
-            //             currentBall->velocity = Vector2Add(currentBall->velocity, Vector2Scale(currentBall->acceleration, TIMESTEP));
-            //             // Computes for change in position using x(t + dt) = x(t) + (v(t + dt) * dt)
-            //             currentBall->position = Vector2Add(currentBall->position, Vector2Scale(currentBall->velocity, TIMESTEP));
-
-            //             // EDGE CHECK
-            //             // Negates the velocity at x and y if the object hits a wall. (Basic Collision Detection)
-            //             if(currentBall->position.x + currentBall->radius >= WINDOW_WIDTH || currentBall->position.x - currentBall->radius <= 0) {
-            //                 currentBall->velocity.x *= -1;
-            //             }
-            //             if(currentBall->position.y + currentBall->radius >= WINDOW_HEIGHT || currentBall->position.y - currentBall->radius <= 0) {
-            //                 currentBall->velocity.y *= -1;
-            //             }
-                    
-            //         }
-            //     }
             accumulator -= TIMESTEP;
             
         }
@@ -495,13 +310,6 @@ int main() {
 
         BeginDrawing();
         ClearBackground(WHITE);
-        // if(gridEnabled){
-        //     for (const GridCell* cell : cells) {
-        //         DrawRectangleLines( (int)cell->position.x, (int)cell->position.y, (int)cell->size.x, (int)cell->size.y,RED);
-        //         DrawText(TextFormat("(%d, %d)", (int)cell->round_pos.x, (int)cell->round_pos.y ),  (int)cell->position.x,  (int)cell->position.y, 12, BLACK);
-        //         DrawText(TextFormat(" %d", (int)cell->ballsInside.size()), (int)(cell->position.x + (cellSize/2)-10),  (int)(cell->position.y + (cellSize/2)-10), 20, BLACK);
-        //     }
-        // }
         
         for (const Ball& ball : balls) {
             DrawCircleV(ball.position, ball.radius, ball.color);
@@ -511,11 +319,6 @@ int main() {
         DrawText("Press V to Enable/Disable Grid.", 10, 44, 34, BLACK);
         EndDrawing();
     }
-
-    // for (GridCell* cell : cells) {
-    //     delete cell;
-    // }
-
     CloseWindow();
     return 0;
 }
