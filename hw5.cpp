@@ -19,7 +19,7 @@ const float screenCenterX = WINDOW_WIDTH / 2;
 const float screenCenterY = WINDOW_HEIGHT / 2;
 const int cellSize = 70;
 const float HALF_WIDTH = max(WINDOW_WIDTH, WINDOW_HEIGHT) / 2.0f; 
-const float MAX_DEPTH = 4;
+const float MAX_DEPTH = 6;
 const Vector2 CENTER = {WINDOW_WIDTH/2, WINDOW_HEIGHT/2};
 const Vector2 ROOT_MIN = {CENTER.x - HALF_WIDTH, CENTER.y - HALF_WIDTH};
 const Vector2 ROOT_MAX = {CENTER.x + HALF_WIDTH, CENTER.y + HALF_WIDTH};
@@ -205,6 +205,22 @@ void CircleToCircleCollision(Ball& ball1, Ball&  ball2){
     }
 };
 
+// recursive - draw active nodes
+void DrawActiveNodes(QuadNode* node) {
+    if (node->children.empty()) {
+        return;
+    }
+    
+    if (!node->ballsInside.empty()) {
+        // Vector2 center = { node->min.x + node->halfWidth, node->min.y + node->halfWidth };
+        DrawRectangleLines(node->min.x, node->min.y, node->max.x-node->min.x, node->max.y-node->min.y, GREEN);
+    }
+
+    for (QuadNode* child : node->children) {
+        DrawActiveNodes(child);
+    }
+}
+
 
 int main() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Exercise 5 - Uniform Grid");
@@ -225,7 +241,7 @@ int main() {
 
     float accumulator = 0;
     bool paused = false;
-    bool gridEnabled = true;
+    bool gridEnabled = false;
     int clickCount = 0;
     vector<Ball*> candidates;
     
@@ -314,6 +330,9 @@ int main() {
         for (const Ball& ball : balls) {
             DrawCircleV(ball.position, ball.radius, ball.color);
         }
+
+        if (gridEnabled)
+            DrawActiveNodes(&root);
         
         DrawText(TextFormat("Number of Balls: %d", ballCount), 10, 10, 34, BLACK);
         DrawText("Press V to Enable/Disable Grid.", 10, 44, 34, BLACK);
